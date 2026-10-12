@@ -13,6 +13,24 @@ def test_predict_endpoint_integration(http_client, sample_home_features):
 
 
 @pytest.mark.integration
+def test_predict_endpoint_integration_with_missing_value(
+    http_client, one_missing_home_features
+):
+    response = http_client.post("/predict", json=one_missing_home_features)
+    assert response.status_code == 200
+    assert response.json()["predicted_price"] > 0
+
+
+@pytest.mark.integration
+def test_predict_endpoint_integration_with_all_numeric_missing(
+    http_client, all_missing_home_features
+):
+    response = http_client.post("/predict", json=all_missing_home_features)
+    assert response.status_code == 200
+    assert response.json()["predicted_price"] > 0
+
+
+@pytest.mark.integration
 def test_health_endpoint_integration(http_client):
     """Test the /health endpoint via HTTP using httpx client."""
     response = http_client.get("/health")

@@ -13,18 +13,22 @@ logger = logging.getLogger(__name__)
 
 
 class HomeFeatures(BaseModel):
-    bedrooms: int = Field(..., ge=0, le=20)
-    bathrooms: float = Field(..., ge=0, le=20)
-    sqft_living: float = Field(..., gt=0, le=50000)
-    sqft_lot: float = Field(..., gt=0, le=10_000_000)
-    floors: float = Field(..., gt=0, le=10)
-    sqft_above: float = Field(..., ge=0, le=50000)
-    sqft_basement: float = Field(..., ge=0, le=50000)
+    bedrooms: int | None = Field(default=None, ge=0, le=20)
+    bathrooms: float | None = Field(default=None, ge=0, le=20)
+    sqft_living: float | None = Field(default=None, gt=0, le=50000)
+    sqft_lot: float | None = Field(default=None, gt=0, le=10_000_000)
+    floors: float | None = Field(default=None, gt=0, le=10)
+    sqft_above: float | None = Field(default=None, ge=0, le=50000)
+    sqft_basement: float | None = Field(default=None, ge=0, le=50000)
     zipcode: str = Field(..., pattern=r"^\d{5}$")
 
     @field_validator("sqft_above", "sqft_basement")
     @classmethod
-    def validate_component_area(cls, value: float, info: ValidationInfo) -> float:
+    def validate_component_area(
+        cls, value: float | None, info: ValidationInfo
+    ) -> float | None:
+        if value is None:
+            return value
         sqft_living = info.data.get("sqft_living") if info.data else None
         if sqft_living is not None and value > sqft_living:
             raise ValueError(f"{info.field_name} cannot exceed sqft_living.")

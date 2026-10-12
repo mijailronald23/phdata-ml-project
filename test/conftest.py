@@ -45,3 +45,28 @@ def unsupported_home_features(sample_home_features):
     payload = dict(sample_home_features)
     payload["zipcode"] = "99999"
     return payload
+
+
+@pytest.fixture
+def one_missing_home_features(sample_home_features):
+    payload = dict(sample_home_features)
+    payload["bathrooms"] = None
+    return payload
+
+
+@pytest.fixture
+def multiple_missing_home_features(sample_home_features):
+    payload = dict(sample_home_features)
+    payload["bathrooms"] = None
+    payload["sqft_lot"] = None
+    payload["sqft_basement"] = None
+    return payload
+
+
+@pytest.fixture
+def all_missing_home_features(sample_home_features):
+    payload = {"zipcode": sample_home_features["zipcode"]}
+    for key in sample_home_features:
+        if key != "zipcode":
+            payload[key] = None
+    return payload

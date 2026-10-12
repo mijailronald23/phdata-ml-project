@@ -36,6 +36,12 @@ class ArtifactPaths:
             "src/model/model_features.json",
         )
     )
+    imputer_path: Path = field(
+        default_factory=lambda: _resolve_default_path(
+            "model/knn_imputer.pkl",
+            "src/model/knn_imputer.pkl",
+        )
+    )
     demographics_path: Path = field(
         default_factory=lambda: _resolve_default_path(
             "data/zipcode_demographics.csv",
@@ -71,6 +77,19 @@ def load_feature_names(features_path: str | Path) -> List[str]:
         )
 
     return list(features)
+
+
+def load_imputer_artifact(imputer_path: str | Path) -> Mapping[str, Any]:
+    artifact_path = _ensure_file_exists(Path(imputer_path), "imputation artifact")
+    with artifact_path.open("rb") as artifact_file:
+        artifact = pickle.load(artifact_file)
+
+    if not isinstance(artifact, dict):
+        raise ResourceInitializationError(
+            "Imputation artifact must deserialize to a dictionary."
+        )
+
+    return artifact
 
 
 def load_demographics(

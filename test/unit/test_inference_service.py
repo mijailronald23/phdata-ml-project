@@ -13,7 +13,7 @@ from utils.loader import ArtifactPaths
 from utils.loader import ResourceInitializationError
 
 
-def legacy_predict(home_features):
+def phase2_predict(home_features):
     artifact_paths = ArtifactPaths()
 
     with artifact_paths.model_path.open("rb") as model_file:
@@ -51,15 +51,73 @@ def test_inference_service_prepare_features_matches_model_order(sample_home_feat
     assert list(prepared.model_input.columns) == service.model_features
     assert prepared.model_input.shape == (1, 33)
     assert prepared.demographics
+    assert prepared.used_imputation is False
 
 
-def test_inference_service_preserves_legacy_prediction(sample_home_features):
+def test_inference_service_loads_imputer_artifact_metadata():
+    service = InferenceService.from_artifacts()
+
+    assert service.imputer_metadata["n_neighbors"] == 5
+    assert service.imputer_metadata["weights"] == "distance"
+    assert service.imputer_metadata["scaled_distances"] is True
+    assert service.imputer_metadata["reference_row_count"] > 0
+
+
+def test_inference_service_preserves_phase2_prediction(sample_home_features):
     service = InferenceService.from_artifacts()
 
     optimized_prediction = service.predict(sample_home_features)
-    legacy_prediction = legacy_predict(sample_home_features)
+    legacy_prediction = phase2_predict(sample_home_features)
 
     assert optimized_prediction == pytest.approx(legacy_prediction)
+
+
+def test_inference_service_imputes_one_missing_value(one_missing_home_features):
+    service = InferenceService.from_artifacts()
+
+    prepared = service.prepare_features(one_missing_home_features)
+
+    assert prepared.used_imputation is True
+    assert prepared.missing_property_features == ("bathrooms",)
+    assert not prepared.model_input.isnull().any().any()
+
+
+def test_inference_service_imputes_multiple_missing_values(
+    multiple_missing_home_features,
+):
+    service = InferenceService.from_artifacts()
+
+    prepared = service.prepare_features(multiple_missing_home_features)
+
+    assert prepared.used_imputation is True
+    assert set(prepared.missing_property_features) == {
+        "bathrooms",
+        "sqft_lot",
+        "sqft_basement",
+    }
+    assert not prepared.model_input.isnull().any().any()
+
+
+def test_inference_service_imputes_all_missing_property_features(
+    all_missing_home_features,
+):
+    service = InferenceService.from_artifacts()
+
+    prepared = service.prepare_features(all_missing_home_features)
+
+    assert prepared.used_imputation is True
+    assert set(prepared.missing_property_features) == set(REQUEST_PROPERTY_FEATURES)
+    assert not prepared.model_input.isnull().any().any()
+    assert prepared.model_input.shape == (1, 33)
+
+
+def test_inference_service_repeated_inference_is_stable(one_missing_home_features):
+    service = InferenceService.from_artifacts()
+
+    first_prediction = service.predict(one_missing_home_features)
+    second_prediction = service.predict(one_missing_home_features)
+
+    assert first_prediction == pytest.approx(second_prediction)
 
 
 def test_application_fails_fast_when_artifacts_are_missing(tmp_path):

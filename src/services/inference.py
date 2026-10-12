@@ -5,10 +5,14 @@ from typing import Any, Dict, List, Mapping, Sequence
 
 import pandas as pd
 
+from preprocessing.imputation import ImputationArtifactError
+from preprocessing.imputation import transform_with_imputer_artifact
+from preprocessing.imputation import validate_imputer_artifact
 from utils.loader import ArtifactPaths
 from utils.loader import ResourceInitializationError
 from utils.loader import load_demographics
 from utils.loader import load_feature_names
+from utils.loader import load_imputer_artifact
 from utils.loader import load_model
 
 
@@ -42,6 +46,8 @@ class PreparedFeatures:
 
     model_input: pd.DataFrame
     demographics: Mapping[str, float]
+    used_imputation: bool
+    missing_property_features: Sequence[str]
 
 
 class InferenceService:
@@ -51,10 +57,12 @@ class InferenceService:
         self,
         model: Any,
         model_features: Sequence[str],
+        imputer_artifact: Mapping[str, Any],
         demographics_by_zipcode: Mapping[str, Mapping[str, float]],
     ) -> None:
         self._model = model
         self._model_features = list(model_features)
+        self._imputer_artifact = dict(imputer_artifact)
         self._demographics_by_zipcode = {
             zipcode: dict(values) for zipcode, values in demographics_by_zipcode.items()
         }
@@ -73,10 +81,12 @@ class InferenceService:
         paths = artifact_paths or ArtifactPaths()
         model = load_model(paths.model_path)
         model_features = load_feature_names(paths.features_path)
+        imputer_artifact = load_imputer_artifact(paths.imputer_path)
         demographics_by_zipcode = load_demographics(paths.demographics_path)
         return cls(
             model=model,
             model_features=model_features,
+            imputer_artifact=imputer_artifact,
             demographics_by_zipcode=demographics_by_zipcode,
         )
 
@@ -88,6 +98,15 @@ class InferenceService:
     def supported_zipcodes(self) -> Sequence[str]:
         return tuple(sorted(self._supported_zipcodes))
 
+    @property
+    def imputer_metadata(self) -> Mapping[str, Any]:
+        return {
+            "n_neighbors": self._imputer_artifact["n_neighbors"],
+            "weights": self._imputer_artifact["weights"],
+            "scaled_distances": self._imputer_artifact["scaled_distances"],
+            "reference_row_count": self._imputer_artifact["reference_row_count"],
+        }
+
     def prepare_features(self, home_features: Mapping[str, Any]) -> PreparedFeatures:
         zipcode = str(home_features["zipcode"])
         demographics = self._demographics_by_zipcode.get(zipcode)
@@ -97,10 +116,15 @@ class InferenceService:
                 "to those present in the demographics dataset."
             )
 
-        combined_features: Dict[str, float] = {
-            feature: home_features[feature] for feature in REQUEST_PROPERTY_FEATURES
+        combined_features: Dict[str, Any] = {
+            feature: home_features.get(feature) for feature in REQUEST_PROPERTY_FEATURES
         }
         combined_features.update(demographics)
+        missing_property_features = [
+            feature
+            for feature in REQUEST_PROPERTY_FEATURES
+            if combined_features.get(feature) is None
+        ]
 
         missing_features = [
             feature for feature in self._model_features if feature not in combined_features
@@ -114,15 +138,31 @@ class InferenceService:
         ordered_features = {
             feature: combined_features[feature] for feature in self._model_features
         }
-        model_input = pd.DataFrame([ordered_features], columns=self._model_features)
+        raw_model_input = pd.DataFrame([ordered_features], columns=self._model_features)
+        model_input = raw_model_input
+        used_imputation = False
+
+        if missing_property_features:
+            try:
+                model_input = transform_with_imputer_artifact(
+                    self._imputer_artifact,
+                    raw_model_input,
+                )
+            except ImputationArtifactError as exc:
+                raise InferenceServiceError("Failed to apply KNN imputation.") from exc
+            used_imputation = True
 
         if model_input.isnull().any().any():
             raise InferenceServiceError(
-                "Prepared model input contains null values; KNN imputation is not "
-                "enabled in this phase."
+                "Prepared model input contains null values after preprocessing."
             )
 
-        return PreparedFeatures(model_input=model_input, demographics=demographics)
+        return PreparedFeatures(
+            model_input=model_input,
+            demographics=demographics,
+            used_imputation=used_imputation,
+            missing_property_features=tuple(missing_property_features),
+        )
 
     def predict(self, home_features: Mapping[str, Any]) -> float:
         prepared = self.prepare_features(home_features)
@@ -165,6 +205,17 @@ class InferenceService:
                 "Demographic feature count is incompatible with the trained model."
             )
 
+        try:
+            validate_imputer_artifact(
+                self._imputer_artifact,
+                feature_names=self._model_features,
+                property_features=REQUEST_PROPERTY_FEATURES,
+            )
+        except ImputationArtifactError as exc:
+            raise ResourceInitializationError(
+                "Imputation artifact is incompatible with the serving contract."
+            ) from exc
+
         missing_zipcode_rows = [
             zipcode
             for zipcode, values in self._demographics_by_zipcode.items()
@@ -203,3 +254,19 @@ class InferenceService:
             raise ResourceInitializationError(
                 "Model artifact and feature schema are incompatible."
             ) from exc
+
+        missing_sample_home = {
+            "bedrooms": None,
+            "bathrooms": None,
+            "sqft_living": None,
+            "sqft_lot": None,
+            "floors": None,
+            "sqft_above": None,
+            "sqft_basement": None,
+            "zipcode": sample_zipcode,
+        }
+        missing_prepared = self.prepare_features(missing_sample_home)
+        if missing_prepared.model_input.isnull().any().any():
+            raise ResourceInitializationError(
+                "Imputation artifact did not resolve missing property features."
+            )
