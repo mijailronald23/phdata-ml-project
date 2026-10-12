@@ -1,57 +1,81 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-import json
-import pickle
-import pandas as pd
+import logging
+
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
+
+from services.inference import InferenceClientError
+from services.inference import InferenceService
+from services.inference import InferenceServiceError
+from services.inference import UnsupportedZipcodeError
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class HomeFeatures(BaseModel):
-    bedrooms: int
-    bathrooms: float
-    sqft_living: float
-    sqft_lot: float
-    floors: float
-    sqft_above: float
-    sqft_basement: float
-    zipcode: str
+    bedrooms: int = Field(..., ge=0, le=20)
+    bathrooms: float = Field(..., ge=0, le=20)
+    sqft_living: float = Field(..., gt=0, le=50000)
+    sqft_lot: float = Field(..., gt=0, le=10_000_000)
+    floors: float = Field(..., gt=0, le=10)
+    sqft_above: float = Field(..., ge=0, le=50000)
+    sqft_basement: float = Field(..., ge=0, le=50000)
+    zipcode: str = Field(..., pattern=r"^\d{5}$")
+
+    @field_validator("sqft_above", "sqft_basement")
+    @classmethod
+    def validate_component_area(cls, value: float, info: ValidationInfo) -> float:
+        sqft_living = info.data.get("sqft_living") if info.data else None
+        if sqft_living is not None and value > sqft_living:
+            raise ValueError(f"{info.field_name} cannot exceed sqft_living.")
+        return value
+
+
+class PredictionResponse(BaseModel):
+    predicted_price: float
+
+
+def get_inference_service(request: Request) -> InferenceService:
+    inference_service = getattr(request.app.state, "inference_service", None)
+    if inference_service is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Inference service is not initialized.",
+        )
+    return inference_service
 
 
 @router.get("/health")
-async def health_check():
+def health_check():
     """
     Health check endpoint for container orchestration.
-    Returns 200 if API is ready to accept requests.
+    Returns 200 if the API process is alive.
     """
     return {"status": "healthy"}
 
 
+@router.get("/ready")
+def readiness_check(request: Request):
+    if not getattr(request.app.state, "ready", False):
+        raise HTTPException(status_code=503, detail="Inference resources are not ready.")
+    get_inference_service(request)
+    return {"status": "ready"}
+
+
 @router.post("/predict")
-async def predict(home_features: HomeFeatures):
-    # Load the model and features
-    with open("model/model.pkl", "rb") as model_file:
-        model = pickle.load(model_file)
+def predict(home_features: HomeFeatures, request: Request) -> PredictionResponse:
+    inference_service = get_inference_service(request)
+    payload = home_features.model_dump()
 
-    with open("model/model_features.json") as features_file:
-        model_features = json.load(features_file)
-        
-    input_data = pd.DataFrame([home_features.dict()])
+    try:
+        prediction = inference_service.predict(payload)
+    except (UnsupportedZipcodeError, InferenceClientError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except InferenceServiceError as exc:
+        logger.exception("Prediction failed for zipcode %s", payload["zipcode"])
+        raise HTTPException(
+            status_code=500,
+            detail="Prediction service is temporarily unavailable.",
+        ) from exc
 
-    # Load demographic data
-    demographics = pd.read_csv("data/zipcode_demographics.csv", dtype={"zipcode": str})
-    demographic_info = demographics[
-        demographics["zipcode"] == home_features.zipcode
-    ].drop(columns="zipcode").reset_index(drop=True)
-
-    # Combine input data with demographic data
-    input_data = pd.concat([input_data, demographic_info], axis=1)
-    print(input_data)
-
-    # Ensure the input data has the correct features
-    input_data = input_data[model_features]
-
-    # Make prediction
-    prediction = model.predict(input_data)
-
-    return {"predicted_price": prediction[0]}
+    return PredictionResponse(predicted_price=prediction)

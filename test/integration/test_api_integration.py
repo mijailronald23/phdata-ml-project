@@ -20,3 +20,11 @@ def test_health_endpoint_integration(http_client):
     response_data = response.json()
     assert "status" in response_data
     assert response_data["status"] == "healthy"
+
+
+@pytest.mark.integration
+def test_ready_endpoint_integration(http_client):
+    """Test the /ready endpoint via HTTP using httpx client."""
+    response = http_client.get("/ready")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}

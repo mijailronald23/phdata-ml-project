@@ -7,8 +7,10 @@ import os
 @pytest.fixture
 def test_client():
     """Fixture for unit tests using FastAPI TestClient."""
-    from src.main import app
-    return TestClient(app)
+    from main import app
+
+    with TestClient(app) as client:
+        yield client
 
 
 @pytest.fixture
@@ -36,3 +38,10 @@ def sample_home_features():
         "sqft_basement": 300.0,
         "zipcode": "98042"
     }
+
+
+@pytest.fixture
+def unsupported_home_features(sample_home_features):
+    payload = dict(sample_home_features)
+    payload["zipcode"] = "99999"
+    return payload
