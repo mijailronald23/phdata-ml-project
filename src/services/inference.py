@@ -3,10 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Sequence
 
+import numpy as np
 import pandas as pd
 
 from preprocessing.imputation import ImputationArtifactError
-from preprocessing.imputation import transform_with_imputer_artifact
+from preprocessing.imputation import transform_array_with_imputer_artifact
 from preprocessing.imputation import validate_imputer_artifact
 from utils.loader import ArtifactPaths
 from utils.loader import ResourceInitializationError
@@ -67,11 +68,18 @@ class InferenceService:
             zipcode: dict(values) for zipcode, values in demographics_by_zipcode.items()
         }
         self._supported_zipcodes = frozenset(self._demographics_by_zipcode.keys())
+        self._feature_positions = {
+            feature: idx for idx, feature in enumerate(self._model_features)
+        }
+        self._property_feature_positions = [
+            self._feature_positions[feature] for feature in REQUEST_PROPERTY_FEATURES
+        ]
         self._demographic_features = [
             feature
             for feature in self._model_features
             if feature not in REQUEST_PROPERTY_FEATURES
         ]
+        self._demographic_arrays_by_zipcode = self._build_demographic_arrays()
 
         self._validate_contract()
         self._validate_model_compatibility()
@@ -110,52 +118,50 @@ class InferenceService:
     def prepare_features(self, home_features: Mapping[str, Any]) -> PreparedFeatures:
         zipcode = str(home_features["zipcode"])
         demographics = self._demographics_by_zipcode.get(zipcode)
+        demographic_array = self._demographic_arrays_by_zipcode.get(zipcode)
         if demographics is None:
             raise UnsupportedZipcodeError(
                 f"Unsupported zipcode '{zipcode}'. Supported zipcodes are limited "
                 "to those present in the demographics dataset."
             )
 
-        combined_features: Dict[str, Any] = {
-            feature: home_features.get(feature) for feature in REQUEST_PROPERTY_FEATURES
-        }
-        combined_features.update(demographics)
         missing_property_features = [
             feature
             for feature in REQUEST_PROPERTY_FEATURES
-            if combined_features.get(feature) is None
+            if home_features.get(feature) is None
         ]
 
-        missing_features = [
-            feature for feature in self._model_features if feature not in combined_features
-        ]
-        if missing_features:
-            raise InferenceServiceError(
-                "Prepared model input is missing required features: "
-                + ", ".join(missing_features)
-            )
+        if demographic_array is None:
+            raise InferenceServiceError("Demographic lookup array is not initialized.")
 
-        ordered_features = {
-            feature: combined_features[feature] for feature in self._model_features
-        }
-        raw_model_input = pd.DataFrame([ordered_features], columns=self._model_features)
-        model_input = raw_model_input
+        raw_model_input_array = demographic_array.copy()
+        for idx, feature in zip(
+            self._property_feature_positions,
+            REQUEST_PROPERTY_FEATURES,
+        ):
+            value = home_features.get(feature)
+            if value is not None:
+                raw_model_input_array[idx] = float(value)
+
+        model_input_array = raw_model_input_array.reshape(1, -1)
         used_imputation = False
 
         if missing_property_features:
             try:
-                model_input = transform_with_imputer_artifact(
+                model_input_array = transform_array_with_imputer_artifact(
                     self._imputer_artifact,
-                    raw_model_input,
+                    model_input_array,
                 )
             except ImputationArtifactError as exc:
                 raise InferenceServiceError("Failed to apply KNN imputation.") from exc
             used_imputation = True
 
-        if model_input.isnull().any().any():
+        if np.isnan(model_input_array).any():
             raise InferenceServiceError(
                 "Prepared model input contains null values after preprocessing."
             )
+
+        model_input = pd.DataFrame(model_input_array, columns=self._model_features)
 
         return PreparedFeatures(
             model_input=model_input,
@@ -270,3 +276,12 @@ class InferenceService:
             raise ResourceInitializationError(
                 "Imputation artifact did not resolve missing property features."
             )
+
+    def _build_demographic_arrays(self) -> Dict[str, np.ndarray]:
+        demographic_arrays: Dict[str, np.ndarray] = {}
+        for zipcode, values in self._demographics_by_zipcode.items():
+            row = np.full(len(self._model_features), np.nan, dtype=float)
+            for feature in self._demographic_features:
+                row[self._feature_positions[feature]] = float(values[feature])
+            demographic_arrays[zipcode] = row
+        return demographic_arrays

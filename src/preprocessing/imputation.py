@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+import numpy as np
 import pandas as pd
 from sklearn.impute import KNNImputer
 from sklearn.preprocessing import RobustScaler
@@ -117,6 +118,30 @@ def transform_with_imputer_artifact(
         index=frame.index,
     )
     return imputed_frame.where(missing_mask, frame)
+
+
+def transform_array_with_imputer_artifact(
+    artifact: Mapping[str, Any],
+    features: np.ndarray,
+) -> np.ndarray:
+    feature_names = list(artifact["feature_names"])
+    feature_count = len(feature_names)
+    if features.ndim != 2 or features.shape[1] != feature_count:
+        raise ImputationArtifactError(
+            "Feature array must be 2-dimensional and match the artifact feature count."
+        )
+
+    if not np.isnan(features).any():
+        return features
+
+    scaler = artifact["scaler"]
+    imputer = artifact["imputer"]
+
+    feature_frame = pd.DataFrame(features, columns=feature_names)
+    scaled_array = scaler.transform(feature_frame)
+    imputed_scaled = imputer.transform(scaled_array)
+    imputed_array = scaler.inverse_transform(imputed_scaled)
+    return np.where(np.isnan(features), imputed_array, features)
 
 
 def _validate_feature_frame(

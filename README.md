@@ -166,6 +166,31 @@ FastAPI loads the following resources once per worker during lifespan startup:
 
 Startup fails fast if any mandatory artifact is missing or incompatible. `/health` remains a liveness endpoint, and `/ready` verifies inference readiness.
 
+## Phase 4 evaluation and benchmarking
+
+Phase 4 adds reproducible offline evaluation and performance benchmarking utilities:
+
+- `evaluate_phase4.py`
+  - reconstructs the original train/validation split from the training code
+  - evaluates complete input plus synthetic missingness scenarios
+  - compares `mean`, `median`, offline KNN, and the current production configuration
+  - reports prediction error and imputation error
+- `benchmark_phase4.py`
+  - profiles the inference path step-by-step
+  - compares current service latency against the Phase 3 baseline
+  - runs reproducible HTTP load tests for complete, missing and mixed traffic
+
+Outputs are written to:
+
+```text
+artifacts/phase4/evaluation_results.json
+artifacts/phase4/benchmark_results.json
+```
+
+### Important evaluation limitation
+
+The evaluation split is reconstructed from the source training code (`train_test_split(random_state=42)`) and the current datasets. This is appropriate for internal comparison of strategies, but it is not a cryptographically verified independent holdout for the serialized `model.pkl`. Treat the resulting metrics as reconstructed validation measurements, not as guaranteed unbiased generalization estimates.
+
 ## Running the API
 
 ### Local
@@ -207,6 +232,30 @@ PYTHONPATH=src:. uvicorn main:app --host 127.0.0.1 --port 8001
 API_BASE_URL=http://127.0.0.1:8001 PYTHONPATH=src:. pytest test/integration -v
 ```
 
+### Phase 4 offline evaluation
+
+```bash
+PYTHONPATH=src:. python evaluate_phase4.py
+```
+
+### Phase 4 profiling and HTTP benchmarking
+
+Start the API in one shell:
+
+```bash
+PYTHONPATH=src:. uvicorn main:app --host 127.0.0.1 --port 8001
+```
+
+Run the benchmark in another shell:
+
+```bash
+PYTHONPATH=src:. python benchmark_phase4.py \
+  --base-url http://127.0.0.1:8001 \
+  --iterations 200 \
+  --requests 120 \
+  --concurrency 12
+```
+
 ## Architecture and trade-offs
 
 ### Decisions
@@ -219,6 +268,7 @@ API_BASE_URL=http://127.0.0.1:8001 PYTHONPATH=src:. pytest test/integration -v
 
 - Each worker keeps its own model and imputer copy in memory.
 - Missing-value inference is slower than complete-record inference because KNN preprocessing is substantially more expensive than the no-missing fast path.
+- For missing-value requests, the end-to-end path performs two neighbor-based operations: KNN imputation and KNN regression.
 - The model pipeline itself still was not retrained with imputed inputs.
 
 ## Known limitations
