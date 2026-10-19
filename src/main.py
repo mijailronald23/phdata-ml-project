@@ -14,9 +14,22 @@ def create_app(
     inference_service: InferenceService | None = None,
     artifact_paths: ArtifactPaths | None = None,
 ) -> FastAPI:
+    """Create the FastAPI application and initialize inference resources.
+
+    Args:
+        inference_service: Optional prebuilt inference service, primarily for tests.
+        artifact_paths: Optional artifact locations used when loading resources.
+
+    Returns:
+        Configured FastAPI application.
+    """
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        """Load inference artifacts once per worker lifespan."""
         app.state.ready = False
+        # Load artifacts once at startup so requests avoid repeated I/O and fail fast
+        # if the model contract or required resources are invalid.
         app.state.inference_service = inference_service or InferenceService.from_artifacts(
             artifact_paths
         )

@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from evaluation.phase4 import EvaluationContext
+from evaluation.phase4 import EvaluationScenario
 from evaluation.phase4 import apply_strategy
 from evaluation.phase4 import build_scenarios
 from evaluation.phase4 import compute_imputation_error
@@ -20,6 +21,7 @@ OUTPUT_PATH = Path("artifacts/phase4/evaluation_results.json")
 
 
 def main() -> None:
+    """Run the Phase 4 offline evaluation and persist the results JSON."""
     context = load_evaluation_context()
     scenarios = build_scenarios(context.raw_test_properties)
     fitted_strategies = fit_strategy_artifacts(context)
@@ -61,20 +63,32 @@ def main() -> None:
 def evaluate_scenario(
     *,
     context: EvaluationContext,
-    scenario,
+    scenario: EvaluationScenario,
     strategy_name: str,
-    strategy,
+    strategy: object,
     baseline_predictions,
-) -> dict:
-    raw_payload = scenario.masked_properties.copy()
-    raw_payload["zipcode"] = context.raw_test_properties["zipcode"].values
+) -> dict[str, object]:
+    """Evaluate one imputation strategy against one missingness scenario.
+
+    Args:
+        context: Shared evaluation inputs and fitted model.
+        scenario: Missingness scenario to evaluate.
+        strategy_name: Human-readable strategy identifier.
+        strategy: Fitted imputation strategy or production artifact.
+        baseline_predictions: Predictions produced from complete model inputs.
+
+    Returns:
+        Scenario-level metrics and runtime information.
+    """
+    property_payload = scenario.masked_properties.copy()
+    property_payload["zipcode"] = context.raw_test_properties["zipcode"].values
     masked_model_frame = enrich_with_demographics(
-        raw_properties=raw_payload,
+        raw_properties=property_payload,
         demographics=context.demographics,
         model_features=context.model_features,
     )
 
-    started_at = time.perf_counter()
+    start_time = time.perf_counter()
     imputed_frame = apply_strategy(
         strategy_name=strategy_name if strategy_name != "current_production" else "production",
         strategy=strategy,
@@ -82,7 +96,7 @@ def evaluate_scenario(
         missing_mask=scenario.missing_mask,
     )
     predictions = context.model.predict(imputed_frame)
-    elapsed_ms = (time.perf_counter() - started_at) * 1000
+    elapsed_ms = (time.perf_counter() - start_time) * 1000
 
     prediction_metrics = compute_prediction_metrics(
         y_true=context.y_test,
@@ -108,7 +122,8 @@ def evaluate_scenario(
     }
 
 
-def build_metadata(context: EvaluationContext) -> dict:
+def build_metadata(context: EvaluationContext) -> dict[str, object]:
+    """Build top-level metadata for the saved evaluation artifact."""
     return {
         "evaluation_type": (
             "Reconstructed validation split from training code. This is not a "

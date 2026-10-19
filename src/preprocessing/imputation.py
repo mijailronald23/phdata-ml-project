@@ -21,8 +21,20 @@ def fit_knn_imputer_artifact(
     feature_names: Sequence[str],
     property_features: Sequence[str],
 ) -> dict[str, Any]:
+    """Fit and package the offline KNN imputation artifact.
+
+    Args:
+        reference_frame: Training-reference feature matrix used to fit preprocessing.
+        feature_names: Ordered internal feature names expected at serving time.
+        property_features: Public request fields that may be missing.
+
+    Returns:
+        Serializable artifact containing the scaler, imputer, and metadata.
+    """
     _validate_feature_frame(reference_frame, feature_names)
 
+    # Robust scaling keeps large-magnitude demographic and area features from
+    # dominating KNN distances during imputation.
     scaler = RobustScaler()
     scaled_reference = scaler.fit_transform(reference_frame.loc[:, feature_names])
 
@@ -49,6 +61,17 @@ def validate_imputer_artifact(
     feature_names: Sequence[str],
     property_features: Sequence[str],
 ) -> None:
+    """Validate that an imputation artifact matches the serving contract.
+
+    Args:
+        artifact: Deserialized imputation artifact.
+        feature_names: Ordered internal feature names required by the model.
+        property_features: Public request fields that may be missing.
+
+    Raises:
+        ImputationArtifactError: If the artifact is missing required metadata or
+            is incompatible with the serving contract.
+    """
     required_keys = {
         "feature_names",
         "property_features",
@@ -99,31 +122,52 @@ def transform_with_imputer_artifact(
     artifact: Mapping[str, Any],
     features: pd.DataFrame,
 ) -> pd.DataFrame:
+    """Impute missing values in a feature frame using a fitted artifact.
+
+    Args:
+        artifact: Validated imputation artifact.
+        features: Feature frame aligned to the model feature contract.
+
+    Returns:
+        Feature frame with missing values imputed and observed values preserved.
+    """
     feature_names = list(artifact["feature_names"])
     _validate_feature_frame(features, feature_names)
 
-    frame = features.loc[:, feature_names].copy()
-    missing_mask = frame.isna()
+    feature_frame = features.loc[:, feature_names].copy()
+    missing_mask = feature_frame.isna()
     if not missing_mask.any().any():
-        return frame
+        return feature_frame
 
     scaler = artifact["scaler"]
     imputer = artifact["imputer"]
 
-    scaled_frame = scaler.transform(frame)
-    imputed_scaled = imputer.transform(scaled_frame)
-    imputed_frame = pd.DataFrame(
-        scaler.inverse_transform(imputed_scaled),
+    scaled_feature_array = scaler.transform(feature_frame)
+    imputed_scaled_array = imputer.transform(scaled_feature_array)
+    imputed_feature_frame = pd.DataFrame(
+        scaler.inverse_transform(imputed_scaled_array),
         columns=feature_names,
-        index=frame.index,
+        index=feature_frame.index,
     )
-    return imputed_frame.where(missing_mask, frame)
+    return imputed_feature_frame.where(missing_mask, feature_frame)
 
 
 def transform_array_with_imputer_artifact(
     artifact: Mapping[str, Any],
     features: np.ndarray,
 ) -> np.ndarray:
+    """Impute missing values in a feature array using a fitted artifact.
+
+    Args:
+        artifact: Validated imputation artifact.
+        features: Two-dimensional feature array aligned to the model contract.
+
+    Returns:
+        Array with missing values imputed and observed values preserved.
+
+    Raises:
+        ImputationArtifactError: If the feature array shape is incompatible.
+    """
     feature_names = list(artifact["feature_names"])
     feature_count = len(feature_names)
     if features.ndim != 2 or features.shape[1] != feature_count:
@@ -137,6 +181,8 @@ def transform_array_with_imputer_artifact(
     scaler = artifact["scaler"]
     imputer = artifact["imputer"]
 
+    # The imputer is fit offline on reference training features only; serving
+    # requests must reuse that artifact rather than refitting on live traffic.
     feature_frame = pd.DataFrame(features, columns=feature_names)
     scaled_array = scaler.transform(feature_frame)
     imputed_scaled = imputer.transform(scaled_array)
@@ -148,6 +194,7 @@ def _validate_feature_frame(
     features: pd.DataFrame,
     feature_names: Sequence[str],
 ) -> None:
+    """Ensure a feature frame contains every required model column."""
     missing_columns = [feature for feature in feature_names if feature not in features.columns]
     if missing_columns:
         raise ImputationArtifactError(

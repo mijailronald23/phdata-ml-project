@@ -7,6 +7,7 @@ import platform
 import statistics
 import time
 from pathlib import Path
+from typing import Callable
 
 import httpx
 import numpy as np
@@ -32,6 +33,7 @@ PHASE3_BASELINE = {
 
 
 def main() -> None:
+    """Run Phase 4 service and HTTP benchmarks and save the results JSON."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8001")
     parser.add_argument("--iterations", type=int, default=200)
@@ -84,6 +86,7 @@ def main() -> None:
 
 
 def build_complete_payload() -> dict:
+    """Return a representative complete request payload for benchmarking."""
     return {
         "bedrooms": 3,
         "bathrooms": 2.0,
@@ -97,11 +100,12 @@ def build_complete_payload() -> dict:
 
 
 def build_missing_payload(complete_payload: dict) -> dict:
-    payload = dict(complete_payload)
-    payload["bathrooms"] = None
-    payload["sqft_lot"] = None
-    payload["sqft_basement"] = None
-    return payload
+    """Return a representative request payload with missing numeric fields."""
+    missing_payload = dict(complete_payload)
+    missing_payload["bathrooms"] = None
+    missing_payload["sqft_lot"] = None
+    missing_payload["sqft_basement"] = None
+    return missing_payload
 
 
 def run_service_benchmarks(
@@ -110,7 +114,8 @@ def run_service_benchmarks(
     complete_payload: dict,
     missing_payload: dict,
     iterations: int,
-) -> dict:
+) -> dict[str, dict[str, float]]:
+    """Measure end-to-end in-process inference latency for key payload types."""
     benchmarks = {
         "complete": lambda: service.predict(complete_payload),
         "missing": lambda: service.predict(missing_payload),
@@ -143,8 +148,9 @@ def run_component_profiles(
     complete_payload: dict,
     missing_payload: dict,
     iterations: int,
-) -> dict:
-    profiles = {
+) -> dict[str, dict[str, dict[str, float]]]:
+    """Profile major steps in the inference path for each payload type."""
+    scenario_profilers = {
         "complete": profile_request_path,
         "missing": profile_request_path,
     }
@@ -153,7 +159,7 @@ def run_component_profiles(
         "missing": missing_payload,
     }
     results = {}
-    for name, profiler in profiles.items():
+    for name, profiler in scenario_profilers.items():
         per_step = {}
         for _ in range(iterations):
             metrics = profiler(service, payloads[name])
@@ -166,63 +172,71 @@ def run_component_profiles(
 
 
 def profile_request_path(service: InferenceService, payload: dict) -> dict[str, float]:
+    """Measure step-level timings for a single prediction request path.
+
+    The recorded step timings are informative but not additive because each
+    section is measured independently.
+    """
     timings_ms: dict[str, float] = {}
 
-    started = time.perf_counter_ns()
+    started_at_ns = time.perf_counter_ns()
     zipcode = str(payload["zipcode"])
     missing_property_features = [
         feature for feature in REQUEST_PROPERTY_FEATURES if payload.get(feature) is None
     ]
-    timings_ms["input_preparation"] = elapsed_ms(started)
+    timings_ms["input_preparation"] = elapsed_ms(started_at_ns)
 
-    started = time.perf_counter_ns()
-    demographics = service._demographics_by_zipcode[zipcode]
+    started_at_ns = time.perf_counter_ns()
     demographic_array = service._demographic_arrays_by_zipcode[zipcode]
-    timings_ms["demographic_lookup"] = elapsed_ms(started)
+    timings_ms["demographic_lookup"] = elapsed_ms(started_at_ns)
 
-    started = time.perf_counter_ns()
-    raw_row = demographic_array.copy()
+    started_at_ns = time.perf_counter_ns()
+    ordered_feature_array = demographic_array.copy()
     for idx, feature in zip(service._property_feature_positions, REQUEST_PROPERTY_FEATURES):
         value = payload.get(feature)
         if value is not None:
-            raw_row[idx] = float(value)
-    raw_array = raw_row.reshape(1, -1)
-    timings_ms["array_creation"] = elapsed_ms(started)
+            ordered_feature_array[idx] = float(value)
+    ordered_feature_array = ordered_feature_array.reshape(1, -1)
+    timings_ms["array_creation"] = elapsed_ms(started_at_ns)
 
     scaler = service._imputer_artifact["scaler"]
     imputer = service._imputer_artifact["imputer"]
-    model_input_array = raw_array
+    model_input_array = ordered_feature_array
 
     if missing_property_features:
-        started = time.perf_counter_ns()
-        feature_frame = pd.DataFrame(raw_array, columns=service.model_features)
+        started_at_ns = time.perf_counter_ns()
+        feature_frame = pd.DataFrame(ordered_feature_array, columns=service.model_features)
         scaled_array = scaler.transform(feature_frame)
-        timings_ms["scaling"] = elapsed_ms(started)
+        timings_ms["scaling"] = elapsed_ms(started_at_ns)
 
-        started = time.perf_counter_ns()
+        started_at_ns = time.perf_counter_ns()
         imputed_scaled = imputer.transform(scaled_array)
-        timings_ms["knn_imputation"] = elapsed_ms(started)
+        timings_ms["knn_imputation"] = elapsed_ms(started_at_ns)
 
-        started = time.perf_counter_ns()
+        started_at_ns = time.perf_counter_ns()
         inverse_scaled = scaler.inverse_transform(imputed_scaled)
-        model_input_array = np.where(np.isnan(raw_array), inverse_scaled, raw_array)
-        timings_ms["inverse_transformation"] = elapsed_ms(started)
+        model_input_array = np.where(
+            np.isnan(ordered_feature_array),
+            inverse_scaled,
+            ordered_feature_array,
+        )
+        timings_ms["inverse_transformation"] = elapsed_ms(started_at_ns)
     else:
         timings_ms["scaling"] = 0.0
         timings_ms["knn_imputation"] = 0.0
         timings_ms["inverse_transformation"] = 0.0
 
-    started = time.perf_counter_ns()
+    started_at_ns = time.perf_counter_ns()
     model_input = pd.DataFrame(model_input_array, columns=service.model_features)
-    timings_ms["dataframe_creation"] = elapsed_ms(started)
+    timings_ms["dataframe_creation"] = elapsed_ms(started_at_ns)
 
-    started = time.perf_counter_ns()
-    prediction = service._model.predict(model_input)
-    timings_ms["model_prediction"] = elapsed_ms(started)
+    started_at_ns = time.perf_counter_ns()
+    prediction_result = service._model.predict(model_input)
+    timings_ms["model_prediction"] = elapsed_ms(started_at_ns)
 
-    started = time.perf_counter_ns()
-    float(prediction[0])
-    timings_ms["response_serialization"] = elapsed_ms(started)
+    started_at_ns = time.perf_counter_ns()
+    float(prediction_result[0])
+    timings_ms["response_serialization"] = elapsed_ms(started_at_ns)
 
     return timings_ms
 
@@ -232,7 +246,8 @@ async def run_http_benchmarks(
     base_url: str,
     total_requests: int,
     concurrency: int,
-) -> dict:
+) -> dict[str, dict[str, float | int]]:
+    """Run end-to-end HTTP benchmarks for complete, missing, and mixed traffic."""
     payloads = load_http_payloads()
     complete_payloads = payloads["complete"]
     missing_payloads = payloads["missing"]
@@ -252,9 +267,10 @@ async def run_http_benchmarks(
 
 
 def load_http_payloads() -> dict[str, list[dict]]:
-    df = pd.read_csv("src/data/future_unseen_examples.csv", dtype={"zipcode": str})
+    """Load representative HTTP benchmark payloads from the reference dataset."""
+    example_frame = pd.read_csv("src/data/future_unseen_examples.csv", dtype={"zipcode": str})
     complete_payloads = (
-        df.loc[:, [*REQUEST_PROPERTY_FEATURES, "zipcode"]]
+        example_frame.loc[:, [*REQUEST_PROPERTY_FEATURES, "zipcode"]]
         .head(60)
         .to_dict(orient="records")
     )
@@ -280,11 +296,12 @@ def build_mixed_payloads(
     complete_payloads: list[dict],
     missing_payloads: list[dict],
 ) -> list[dict]:
-    mixed = []
+    """Interleave complete and missing payloads for mixed-traffic benchmarking."""
+    mixed_payloads = []
     for complete, missing in zip(complete_payloads, missing_payloads):
-        mixed.append(complete)
-        mixed.append(missing)
-    return mixed
+        mixed_payloads.append(complete)
+        mixed_payloads.append(missing)
+    return mixed_payloads
 
 
 async def benchmark_http_scenario(
@@ -292,7 +309,8 @@ async def benchmark_http_scenario(
     payloads: list[dict],
     total_requests: int,
     concurrency: int,
-) -> dict:
+) -> dict[str, float | int]:
+    """Benchmark one HTTP traffic scenario against the running API service."""
     latencies: list[float] = []
     error_count = 0
     semaphore = asyncio.Semaphore(concurrency)
@@ -325,16 +343,18 @@ async def benchmark_http_scenario(
     }
 
 
-def measure_latency(fn, iterations: int) -> dict[str, float]:
+def measure_latency(callable_under_test: Callable[[], object], iterations: int) -> dict[str, float]:
+    """Measure repeated latency for a synchronous callable."""
     latencies = []
     for _ in range(iterations):
         started_at = time.perf_counter()
-        fn()
+        callable_under_test()
         latencies.append((time.perf_counter() - started_at) * 1000)
     return summarize_timings(latencies)
 
 
 def summarize_timings(latencies: list[float]) -> dict[str, float]:
+    """Summarize latency measurements using average, median, and p95."""
     return {
         "avg_ms": round(statistics.mean(latencies), 3),
         "median_ms": round(statistics.median(latencies), 3),
@@ -343,10 +363,12 @@ def summarize_timings(latencies: list[float]) -> dict[str, float]:
 
 
 def percentile(latencies: list[float], q: float) -> float:
+    """Return a rounded percentile from a list of latency samples."""
     return round(float(np.percentile(latencies, q)), 3)
 
 
 def elapsed_ms(started_ns: int) -> float:
+    """Convert nanosecond timer deltas into milliseconds."""
     return (time.perf_counter_ns() - started_ns) / 1_000_000
 
 
