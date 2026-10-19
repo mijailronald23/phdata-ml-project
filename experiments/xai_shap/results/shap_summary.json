@@ -1,0 +1,277 @@
+{
+  "metadata": {
+    "seed": 42,
+    "model_type": "sklearn.pipeline.Pipeline",
+    "final_estimator_type": "sklearn.neighbors._regression.KNeighborsRegressor",
+    "model_feature_count": 33,
+    "model_features": [
+      "bedrooms",
+      "bathrooms",
+      "sqft_living",
+      "sqft_lot",
+      "floors",
+      "sqft_above",
+      "sqft_basement",
+      "ppltn_qty",
+      "urbn_ppltn_qty",
+      "sbrbn_ppltn_qty",
+      "farm_ppltn_qty",
+      "non_farm_qty",
+      "medn_hshld_incm_amt",
+      "medn_incm_per_prsn_amt",
+      "hous_val_amt",
+      "edctn_less_than_9_qty",
+      "edctn_9_12_qty",
+      "edctn_high_schl_qty",
+      "edctn_some_clg_qty",
+      "edctn_assoc_dgre_qty",
+      "edctn_bchlr_dgre_qty",
+      "edctn_prfsnl_qty",
+      "per_urbn",
+      "per_sbrbn",
+      "per_farm",
+      "per_non_farm",
+      "per_less_than_9",
+      "per_9_to_12",
+      "per_hsd",
+      "per_some_clg",
+      "per_assoc",
+      "per_bchlr",
+      "per_prfsnl"
+    ],
+    "model_sha256": "3ffdefa1129b044bee97c1cd4a28e3ff709f12ae814ddccacf3467791ea16be1",
+    "knn_imputer_sha256": "48097c16257bd02bdd38fc3af29eacaf596afc88b959adb54f22fd107e69a07d",
+    "scikit_learn_version": "1.7.2",
+    "shap_version": "0.54.1",
+    "background_sample_size": 20,
+    "explanation_sample_size": 5,
+    "explainer_algorithm": "permutation",
+    "explainer_class": "PermutationExplainer",
+    "max_evals": 67,
+    "execution_time_seconds": 1.172299,
+    "explanation_runtime_seconds": 0.167346
+  },
+  "global_feature_importance": {
+    "label": "Exploratory SHAP feature importance - small sample",
+    "top_features": [
+      {
+        "feature": "hous_val_amt",
+        "mean_abs_shap": 60271.645
+      },
+      {
+        "feature": "bathrooms",
+        "mean_abs_shap": 35859.393
+      },
+      {
+        "feature": "sqft_living",
+        "mean_abs_shap": 34384.356
+      },
+      {
+        "feature": "sqft_above",
+        "mean_abs_shap": 33101.385999999984
+      },
+      {
+        "feature": "bedrooms",
+        "mean_abs_shap": 31009.721999999998
+      },
+      {
+        "feature": "farm_ppltn_qty",
+        "mean_abs_shap": 26372.468
+      },
+      {
+        "feature": "sqft_lot",
+        "mean_abs_shap": 23739.42499999999
+      },
+      {
+        "feature": "per_hsd",
+        "mean_abs_shap": 22703.090999999986
+      },
+      {
+        "feature": "sqft_basement",
+        "mean_abs_shap": 22610.504999999994
+      },
+      {
+        "feature": "non_farm_qty",
+        "mean_abs_shap": 19748.155000000006
+      }
+    ]
+  },
+  "local_explanation": {
+    "selected_observation": {
+      "source_row_index": 870,
+      "raw_complete_input": {
+        "bedrooms": 3,
+        "bathrooms": 1.0,
+        "sqft_living": 2120,
+        "sqft_lot": 31564,
+        "floors": 1.0,
+        "sqft_above": 1220,
+        "sqft_basement": 900,
+        "zipcode": "98168"
+      }
+    },
+    "prediction": 337477.6,
+    "baseline_value": 470669.13,
+    "approximation_value": 337477.5999999999,
+    "additivity_error": 5.820766091346741e-11,
+    "feature_contributions": [
+      {
+        "feature": "sqft_lot",
+        "feature_value": 31564.0,
+        "shap_value": 73998.05500000002
+      },
+      {
+        "feature": "bathrooms",
+        "feature_value": 1.0,
+        "shap_value": -53344.35500000001
+      },
+      {
+        "feature": "sqft_basement",
+        "feature_value": 900.0,
+        "shap_value": 53223.264999999985
+      },
+      {
+        "feature": "edctn_high_schl_qty",
+        "feature_value": 7198.0,
+        "shap_value": -32535.93000000005
+      },
+      {
+        "feature": "per_less_than_9",
+        "feature_value": 5.0,
+        "shap_value": 30873.679999999906
+      },
+      {
+        "feature": "per_hsd",
+        "feature_value": 23.0,
+        "shap_value": -30830.64499999999
+      },
+      {
+        "feature": "medn_incm_per_prsn_amt",
+        "feature_value": 19048.0,
+        "shap_value": -30710.0
+      },
+      {
+        "feature": "per_bchlr",
+        "feature_value": 6.0,
+        "shap_value": -30086.49999999994
+      },
+      {
+        "feature": "hous_val_amt",
+        "feature_value": 143500.0,
+        "shap_value": -29935.709999999992
+      },
+      {
+        "feature": "edctn_9_12_qty",
+        "feature_value": 3402.0,
+        "shap_value": -25049.99999999997
+      }
+    ],
+    "explainer_configuration": {
+      "background_sample_size": 20,
+      "max_evals": 67,
+      "algorithm": "permutation",
+      "feature_count": 33
+    }
+  },
+  "missing_data_comparison": {
+    "raw_missing_input": {
+      "bedrooms": 3,
+      "bathrooms": null,
+      "sqft_living": 2120,
+      "sqft_lot": null,
+      "floors": 1.0,
+      "sqft_above": 1220,
+      "sqft_basement": 900,
+      "zipcode": "98168"
+    },
+    "prediction_complete": 337477.6,
+    "prediction_missing": 271110.0,
+    "absolute_prediction_difference": 66367.59999999998,
+    "relative_prediction_difference_pct": 19.665779299129774,
+    "imputed_features": [
+      "bathrooms",
+      "sqft_lot"
+    ],
+    "imputed_feature_values": {
+      "bathrooms": 1.397872624403325,
+      "sqft_lot": 15638.217274826096
+    },
+    "changed_model_input_features": [
+      {
+        "feature": "bathrooms",
+        "complete_value": 1.0,
+        "missing_value": 1.397872624403325
+      },
+      {
+        "feature": "sqft_lot",
+        "complete_value": 31564.0,
+        "missing_value": 15638.217274826096
+      }
+    ],
+    "complete_explanation": {
+      "baseline_value": 470669.13,
+      "approximation_value": 337477.5999999999,
+      "additivity_error": 5.820766091346741e-11,
+      "top_feature_contributions": [
+        {
+          "feature": "sqft_lot",
+          "feature_value": 31564.0,
+          "shap_value": 73998.05500000002
+        },
+        {
+          "feature": "bathrooms",
+          "feature_value": 1.0,
+          "shap_value": -53344.35500000001
+        },
+        {
+          "feature": "sqft_basement",
+          "feature_value": 900.0,
+          "shap_value": 53223.264999999985
+        },
+        {
+          "feature": "edctn_high_schl_qty",
+          "feature_value": 7198.0,
+          "shap_value": -32535.93000000005
+        },
+        {
+          "feature": "per_less_than_9",
+          "feature_value": 5.0,
+          "shap_value": 30873.679999999906
+        }
+      ]
+    },
+    "missing_explanation": {
+      "baseline_value": 470669.13,
+      "approximation_value": 271110.0,
+      "additivity_error": 0.0,
+      "top_feature_contributions": [
+        {
+          "feature": "per_less_than_9",
+          "feature_value": 5.0,
+          "shap_value": -45310.419999999984
+        },
+        {
+          "feature": "edctn_high_schl_qty",
+          "feature_value": 7198.0,
+          "shap_value": -29573.75
+        },
+        {
+          "feature": "edctn_prfsnl_qty",
+          "feature_value": 740.0,
+          "shap_value": -29219.879999999976
+        },
+        {
+          "feature": "sqft_basement",
+          "feature_value": 900.0,
+          "shap_value": 26574.035000000033
+        },
+        {
+          "feature": "per_bchlr",
+          "feature_value": 6.0,
+          "shap_value": -25434.899999999994
+        }
+      ]
+    },
+    "interpretation_note": "SHAP explains the downstream KNeighborsRegressor on the final 33-feature model input. It does not isolate a causal effect of missingness or separately explain the KNN imputation mechanism."
+  }
+}
