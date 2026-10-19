@@ -1,279 +1,142 @@
 # FastAPI Housing Price API
 
-This repository implements the phData Machine Learning Engineer Project Challenge as a FastAPI service that serves a pre-trained house price model. Version `v0.3.0` adds offline-fitted KNN missing-data imputation while preserving the existing trained model, the `/predict` endpoint, and the response shape:
+## 1. Project Overview
+Sound Realty uses this API to estimate Seattle-area home prices from property data. The original service could not handle missing numeric inputs and did repeated artifact loading on every request. This implementation keeps the existing trained model intact, adds KNN-based missing-data handling, and improves inference performance.
 
 ```json
-{
-  "predicted_price": 450000.0
-}
+{"predicted_price": 450000.0}
 ```
 
-## What is deployed
-
-The deployed inference path is:
-
-`FastAPI -> Input Validation -> InferenceService -> Zipcode Enrichment -> KNN Imputation (when needed) -> Existing ML Model -> Prediction`
+## 2. Architecture
+`FastAPI -> Pydantic validation -> InferenceService -> zipcode demographic enrichment -> KNN imputation when needed -> existing model -> JSON response`
 
 Important invariants:
+- `src/model/model.pkl` is preserved and not retrained.
+- The model still receives exactly 33 ordered internal features.
+- The public API remains 8 fields: 7 numeric property fields plus required `zipcode`.
+- Complete inputs bypass imputation and preserve the pre-imputation prediction path.
 
-- `src/model/model.pkl` is preserved and not retrained by the API.
-- The model still consumes exactly 33 ordered internal features.
-- Public API input remains property fields plus mandatory `zipcode`.
-- Complete inputs bypass imputation so predictions remain compatible with Phase 2.
+Core files:
+- `src/main.py`: FastAPI app and lifespan startup
+- `src/api/endpoints.py`: `/health`, `/ready`, `/predict`
+- `src/services/inference.py`: in-memory inference path
+- `src/preprocessing/imputation.py`: `RobustScaler + KNNImputer`
+- `create_imputer.py`: offline artifact generation
 
-## Project structure
-
-```text
-phdata-ml-project
-├── src/
-│   ├── api/
-│   │   └── endpoints.py
-│   ├── preprocessing/
-│   │   └── imputation.py
-│   ├── services/
-│   │   └── inference.py
-│   ├── utils/
-│   │   └── loader.py
-│   ├── model/
-│   │   ├── model.pkl
-│   │   ├── model_features.json
-│   │   └── knn_imputer.pkl
-│   └── data/
-│       ├── kc_house_data.csv
-│       ├── zipcode_demographics.csv
-│       └── future_unseen_examples.csv
-├── create_model.py
-├── create_imputer.py
-├── Dockerfile
-├── Dockerfile.test
-├── docker-compose.test.yml
-└── test/
-```
-
-## Environment compatibility
-
-The existing model artifact was serialized with `scikit-learn 1.7.2`. To avoid runtime incompatibility, `requirements.txt` now pins:
-
-```text
-scikit-learn==1.7.2
-```
-
-This is required for both local execution and container builds. Do not modify `model.pkl`.
-
-## Input contract
-
-`/predict` accepts:
-
-- `zipcode` (required, 5-digit string)
-- numeric property features:
-  - `bedrooms`
-  - `bathrooms`
-  - `sqft_living`
-  - `sqft_lot`
-  - `floors`
-  - `sqft_above`
-  - `sqft_basement`
-
-Phase 3 behavior:
-
-- Numeric property fields may be omitted or set to `null`
-- `zipcode` remains mandatory
-- unsupported zipcodes return `422`
-- malformed inputs still return validation errors
-
-## Missing-data handling
-
-Phase 3 uses a fitted offline KNN imputation artifact:
-
-- estimator: `KNNImputer`
-- `n_neighbors=5`
-- `weights="distance"`
-- distance space: robustly scaled numeric features
-
-### Why scale before KNN?
-
-KNN distance is sensitive to feature magnitude. In this dataset, raw dimensions such as `sqft_lot`, population counts, income and property value can dominate the distance calculation if left unscaled. The imputation artifact therefore fits:
-
-1. `RobustScaler` on the reference feature matrix
-2. `KNNImputer` on the scaled matrix
-
-At inference time the request is enriched, scaled, imputed, and inverse-transformed back to raw feature space before being passed to the existing model pipeline.
-
-### Why use the enriched 33-feature representation instead of only 7 property fields?
-
-The model already expects the 33-feature enriched representation, and using it for KNN imputation has two advantages:
-
-1. It matches the serving feature space used by the deployed model.
-2. It allows imputation even when all 7 property features are missing, because the 26 demographic features remain available from `zipcode`.
-
-### Training-serving consistency choice
-
-The notebook research was exploratory and operated on synthetic missingness over the raw housing dataset. The deployed model was not trained with an imputer in its pipeline. To minimize serving drift:
-
-- complete records bypass imputation entirely
-- the imputer is fit offline on the model's reference training features only
-- the target column (`price`) is never used during imputer fitting
-
-This keeps the imputer aligned with the model input schema while avoiding target leakage. It does **not** eliminate the broader limitation that the model itself was not retrained on imputed inputs.
-
-## Offline imputer preparation
-
-`create_imputer.py` fits `src/model/knn_imputer.pkl` offline using the same feature construction and train split used by `create_model.py`:
-
-- loads the historical sales data
-- joins zipcode demographics
-- removes `price`
-- recreates the original `train_test_split(random_state=42)`
-- fits the scaler + KNN imputer on `x_train` only
-
-### Local artifact generation
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-PYTHONPATH=src:. python create_imputer.py
-```
-
-### Docker artifact generation
-
-Build the artifact image:
-
-```bash
-docker build -f src/model/Dockerfile -t create-model .
-```
-
-Generate the original model artifacts if needed:
-
-```bash
-docker run --rm -v "$(pwd)/src/model:/app/model" create-model
-```
-
-Generate the imputer artifact:
-
-```bash
-docker run --rm -v "$(pwd)/src/model:/app/model" create-model python create_imputer.py
-```
-
-## Startup artifact loading
-
-FastAPI loads the following resources once per worker during lifespan startup:
-
-- `model.pkl`
-- `model_features.json`
-- `knn_imputer.pkl`
-- `zipcode_demographics.csv`
-
-Startup fails fast if any mandatory artifact is missing or incompatible. `/health` remains a liveness endpoint, and `/ready` verifies inference readiness.
-
-## Phase 4 evaluation and benchmarking
-
-Phase 4 adds reproducible offline evaluation and performance benchmarking utilities:
-
-- `evaluate_phase4.py`
-  - reconstructs the original train/validation split from the training code
-  - evaluates complete input plus synthetic missingness scenarios
-  - compares `mean`, `median`, offline KNN, and the current production configuration
-  - reports prediction error and imputation error
-- `benchmark_phase4.py`
-  - profiles the inference path step-by-step
-  - compares current service latency against the Phase 3 baseline
-  - runs reproducible HTTP load tests for complete, missing and mixed traffic
-
-Outputs are written to:
-
-```text
-artifacts/phase4/evaluation_results.json
-artifacts/phase4/benchmark_results.json
-```
-
-### Important evaluation limitation
-
-The evaluation split is reconstructed from the source training code (`train_test_split(random_state=42)`) and the current datasets. This is appropriate for internal comparison of strategies, but it is not a cryptographically verified independent holdout for the serialized `model.pkl`. Treat the resulting metrics as reconstructed validation measurements, not as guaranteed unbiased generalization estimates.
-
-## Running the API
-
-### Local
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-PYTHONPATH=src:. uvicorn main:app --host 0.0.0.0 --port 8000
-```
-
-### Docker
-
+## 3. Quick Start with Docker
 ```bash
 docker build -t phdata-ml-api .
-docker run -d -p 8000:8000 --name housing-api phdata-ml-api
+docker run --rm -p 8000:8000 --name phdata-ml-api phdata-ml-api
 ```
 
-Docs will be available at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
-
-## Testing
-
-### Docker-based test workflow
+```bash
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/ready
+```
 
 ```bash
+docker build -f Dockerfile.test -t ml-api-test .
 make test-unit
 make test-integration
 make test-all
 ```
 
-### Local pytest workflow
+## 4. API Usage
+- Required: `zipcode` as a 5-digit string
+- Optional or nullable: `bedrooms`, `bathrooms`, `sqft_living`, `sqft_lot`, `floors`, `sqft_above`, `sqft_basement`
 
+```bash
+curl -X POST http://127.0.0.1:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bedrooms": 3,
+    "bathrooms": 2.0,
+    "sqft_living": 1500,
+    "sqft_lot": 5000,
+    "floors": 1.0,
+    "sqft_above": 1200,
+    "sqft_basement": 300,
+    "zipcode": "98042"
+  }'
+```
+
+```bash
+curl -X POST http://127.0.0.1:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bedrooms": 3,
+    "bathrooms": null,
+    "sqft_living": 1500,
+    "sqft_lot": null,
+    "floors": 1.0,
+    "sqft_above": 1200,
+    "sqft_basement": 300,
+    "zipcode": "98042"
+  }'
+```
+
+```bash
+curl -X POST http://127.0.0.1:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"sqft_living": -1, "zipcode": "98A42"}'
+```
+
+## 5. KNN Missing Data Imputation
+The deployed model expects 33 features: 7 property features and 26 demographic features joined by `zipcode`. When any numeric property value is missing, the request is first enriched with zipcode demographics and then imputed in the same 33-feature space used by the model.
+
+Serving uses an offline-fitted artifact with:
+- `RobustScaler`
+- `KNNImputer(n_neighbors=5, weights="distance")`
+- training reference data only
+
+The imputer is fit offline by `create_imputer.py` on the reconstructed training split from `create_model.py`. It never uses `price` and never fits during API requests.
+
+## 6. Performance Improvements
+Artifacts are loaded once per worker during FastAPI lifespan startup:
+- `model.pkl`
+- `model_features.json`
+- `knn_imputer.pkl`
+- `zipcode_demographics.csv`
+
+Stored historical baseline used by the benchmark comparison:
+- complete input mean `2.785 ms`, median `2.743 ms`, P95 `3.824 ms`
+
+Phase 4 service benchmark:
+- complete input mean `1.709 ms`, median `1.227 ms`, P95 `2.798 ms`
+- missing input mean `99.984 ms`, median `99.147 ms`, P95 `120.260 ms`
+- complete-path mean improved `38.64%` versus the stored baseline
+- missing-value path adds `98.275 ms` mean overhead due to scaling, KNN imputation, and downstream model prediction
+
+Phase 4 HTTP benchmark:
+- complete traffic: `205.431 req/s`, `p95 101.668 ms`
+- missing traffic: `61.519 req/s`, `p95 280.395 ms`
+- mixed traffic: `95.079 req/s`, `p95 271.814 ms`
+
+## 7. Testing
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt -r requirements-test.txt
+```
+
+Run tests locally:
+
+```bash
 PYTHONPATH=src:. pytest test/unit -v
 PYTHONPATH=src:. uvicorn main:app --host 127.0.0.1 --port 8001
 API_BASE_URL=http://127.0.0.1:8001 PYTHONPATH=src:. pytest test/integration -v
 ```
 
-### Phase 4 offline evaluation
+Phase 4 utilities:
 
 ```bash
 PYTHONPATH=src:. python evaluate_phase4.py
+PYTHONPATH=src:. python benchmark_phase4.py --base-url http://127.0.0.1:8001 --iterations 200 --requests 120 --concurrency 12
 ```
 
-### Phase 4 profiling and HTTP benchmarking
-
-Start the API in one shell:
-
-```bash
-PYTHONPATH=src:. uvicorn main:app --host 127.0.0.1 --port 8001
-```
-
-Run the benchmark in another shell:
-
-```bash
-PYTHONPATH=src:. python benchmark_phase4.py \
-  --base-url http://127.0.0.1:8001 \
-  --iterations 200 \
-  --requests 120 \
-  --concurrency 12
-```
-
-## Architecture and trade-offs
-
-### Decisions
-
-- Inference resources are loaded once at startup for performance.
-- The endpoint stays synchronous so CPU-bound preprocessing and model inference run in FastAPI's threadpool instead of blocking the event loop.
-- Imputation is separated from API validation and from artifact loading.
-
-### Trade-offs
-
-- Each worker keeps its own model and imputer copy in memory.
-- Missing-value inference is slower than complete-record inference because KNN preprocessing is substantially more expensive than the no-missing fast path.
-- For missing-value requests, the end-to-end path performs two neighbor-based operations: KNN imputation and KNN regression.
-- The model pipeline itself still was not retrained with imputed inputs.
-
-## Known limitations
-
-- The model was not retrained to explicitly account for imputed requests.
-- KNN imputation uses historical training features as its neighborhood reference set; this is appropriate for serving, but still assumes production missingness resembles the observed training distribution.
-- Integration test coverage reported by `pytest --cov` against an external running server is not representative of in-process code coverage.
-- CORS remains permissive and observability is still minimal for a production-grade deployment.
+## 8. Limitations
+- The evaluation split is reconstructed from training code and current data; it is not a cryptographically verified independent holdout for `model.pkl`.
+- The model itself was not retrained with imputed inputs.
+- Missing-value requests are much slower than complete requests because the KNN path is CPU-heavy.
+- Each worker keeps its own in-memory copy of the model and imputation resources.
+- Docker commands are provided here, but container execution must be verified in an environment where Docker is available.
