@@ -46,6 +46,20 @@ src/model/model.pkl
 artifacts/
 checkpoints/
 
+# Required private-repo delivery artifacts
+!src/model/model.pkl
+!src/model/knn_imputer.pkl
+!src/data/
+src/data/*
+!src/data/zipcode_demographics.csv
+!artifacts/
+artifacts/*
+!artifacts/phase4/
+artifacts/phase4/*
+!artifacts/phase4/evaluation_results.json
+!artifacts/phase4/benchmark_results.json
+!artifacts/phase4/PHASE4_SUMMARY.md
+
 # Original notebook (review before sharing)
 notebooks/imputation_experiment.ipynb
 .ipynb_checkpoints/

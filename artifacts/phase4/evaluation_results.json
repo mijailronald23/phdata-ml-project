@@ -1,0 +1,454 @@
+{
+  "metadata": {
+    "evaluation_type": "Reconstructed validation split from training code. This is not a cryptographically verified independent holdout for the serialized model.",
+    "train_row_count": 16209,
+    "test_row_count": 5404,
+    "model_feature_count": 33,
+    "property_feature_count": 7,
+    "model_features": [
+      "bedrooms",
+      "bathrooms",
+      "sqft_living",
+      "sqft_lot",
+      "floors",
+      "sqft_above",
+      "sqft_basement",
+      "ppltn_qty",
+      "urbn_ppltn_qty",
+      "sbrbn_ppltn_qty",
+      "farm_ppltn_qty",
+      "non_farm_qty",
+      "medn_hshld_incm_amt",
+      "medn_incm_per_prsn_amt",
+      "hous_val_amt",
+      "edctn_less_than_9_qty",
+      "edctn_9_12_qty",
+      "edctn_high_schl_qty",
+      "edctn_some_clg_qty",
+      "edctn_assoc_dgre_qty",
+      "edctn_bchlr_dgre_qty",
+      "edctn_prfsnl_qty",
+      "per_urbn",
+      "per_sbrbn",
+      "per_farm",
+      "per_non_farm",
+      "per_less_than_9",
+      "per_9_to_12",
+      "per_hsd",
+      "per_some_clg",
+      "per_assoc",
+      "per_bchlr",
+      "per_prfsnl"
+    ]
+  },
+  "strategies": {
+    "mean": {
+      "complete_input": {
+        "description": "No missing property values. Baseline evaluation.",
+        "is_simulation": false,
+        "prediction_metrics": {
+          "mae": 102085.9804219097,
+          "rmse": 201684.77125972387,
+          "r2": 0.7280741161355532,
+          "baseline_delta_mae": 0.0,
+          "baseline_delta_rmse": 0.0
+        },
+        "imputation_metrics": {
+          "mae": null,
+          "rmse": null
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 0,
+        "runtime_ms_total": 87.51151400065282,
+        "runtime_ms_per_record": 0.01619384048864782
+      },
+      "random_missing_5pct": {
+        "description": "Synthetic MCAR simulation over API-allowed property features at 5% missingness.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 104346.92109548482,
+          "rmse": 205667.3832471544,
+          "r2": 0.7172287966712461,
+          "baseline_delta_mae": 12461.381014063656,
+          "baseline_delta_rmse": 43998.871803825125
+        },
+        "imputation_metrics": {
+          "mae": 2837.9469195356464,
+          "rmse": 38773.831543172106
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 1901,
+        "runtime_ms_total": 83.42622400050459,
+        "runtime_ms_per_record": 0.015437865285067466
+      },
+      "random_missing_15pct": {
+        "description": "Synthetic MCAR simulation over API-allowed property features at 15% missingness.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 110036.17731310142,
+          "rmse": 216485.01683709436,
+          "r2": 0.6867002686327832,
+          "baseline_delta_mae": 34248.4310880829,
+          "baseline_delta_rmse": 79960.38032230995
+        },
+        "imputation_metrics": {
+          "mae": 2325.484631380031,
+          "rmse": 24407.372095307193
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 5652,
+        "runtime_ms_total": 90.96218899867381,
+        "runtime_ms_per_record": 0.016832381383914474
+      },
+      "random_missing_30pct": {
+        "description": "Synthetic MCAR simulation over API-allowed property features at 30% missingness.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 117685.72046632123,
+          "rmse": 227180.70236381833,
+          "r2": 0.6549776643520582,
+          "baseline_delta_mae": 61047.1822353812,
+          "baseline_delta_rmse": 115835.04167099018
+        },
+        "imputation_metrics": {
+          "mae": 2449.3025649424376,
+          "rmse": 22707.603545704696
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 11351,
+        "runtime_ms_total": 86.55384799931198,
+        "runtime_ms_per_record": 0.016016626202685416
+      },
+      "structured_missing_groups": {
+        "description": "Synthetic grouped missingness where correlated property fields are removed together.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 106726.78478904515,
+          "rmse": 210153.08850443308,
+          "r2": 0.7047595293457329,
+          "baseline_delta_mae": 14892.221169504071,
+          "baseline_delta_rmse": 55497.426950472
+        },
+        "imputation_metrics": {
+          "mae": 2272.0926524344645,
+          "rmse": 16557.172717831847
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 2598,
+        "runtime_ms_total": 94.086293998771,
+        "runtime_ms_per_record": 0.017410491117463175
+      }
+    },
+    "median": {
+      "complete_input": {
+        "description": "No missing property values. Baseline evaluation.",
+        "is_simulation": false,
+        "prediction_metrics": {
+          "mae": 102085.9804219097,
+          "rmse": 201684.77125972387,
+          "r2": 0.7280741161355532,
+          "baseline_delta_mae": 0.0,
+          "baseline_delta_rmse": 0.0
+        },
+        "imputation_metrics": {
+          "mae": null,
+          "rmse": null
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 0,
+        "runtime_ms_total": 87.5075680014561,
+        "runtime_ms_per_record": 0.016193110288944504
+      },
+      "random_missing_5pct": {
+        "description": "Synthetic MCAR simulation over API-allowed property features at 5% missingness.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 104747.3531088083,
+          "rmse": 207488.13970031322,
+          "r2": 0.7121999342370025,
+          "baseline_delta_mae": 11458.824056254627,
+          "baseline_delta_rmse": 44492.02510792439
+        },
+        "imputation_metrics": {
+          "mae": 2392.5439242503944,
+          "rmse": 39017.95456054603
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 1901,
+        "runtime_ms_total": 89.02496399969095,
+        "runtime_ms_per_record": 0.016473901554346956
+      },
+      "random_missing_15pct": {
+        "description": "Synthetic MCAR simulation over API-allowed property features at 15% missingness.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 110118.1071058475,
+          "rmse": 220129.00126268953,
+          "r2": 0.6760642638884282,
+          "baseline_delta_mae": 31668.501295336788,
+          "baseline_delta_rmse": 81330.21417982588
+        },
+        "imputation_metrics": {
+          "mae": 1883.25601556971,
+          "rmse": 24649.720889694556
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 5652,
+        "runtime_ms_total": 110.46848100158968,
+        "runtime_ms_per_record": 0.02044198390110838
+      },
+      "random_missing_30pct": {
+        "description": "Synthetic MCAR simulation over API-allowed property features at 30% missingness.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 118107.24626202811,
+          "rmse": 233838.98163046283,
+          "r2": 0.6344572649043664,
+          "baseline_delta_mae": 57667.18604737231,
+          "baseline_delta_rmse": 119183.16617215055
+        },
+        "imputation_metrics": {
+          "mae": 1947.7111267729715,
+          "rmse": 22969.43795049428
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 11351,
+        "runtime_ms_total": 94.85295800004678,
+        "runtime_ms_per_record": 0.01755236084382805
+      },
+      "structured_missing_groups": {
+        "description": "Synthetic grouped missingness where correlated property fields are removed together.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 106278.69740932641,
+          "rmse": 210661.36938483006,
+          "r2": 0.7033296520807273,
+          "baseline_delta_mae": 13379.640599555883,
+          "baseline_delta_rmse": 54573.76423708702
+        },
+        "imputation_metrics": {
+          "mae": 1792.1731139337953,
+          "rmse": 16850.191123633533
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 2598,
+        "runtime_ms_total": 88.92133900008048,
+        "runtime_ms_per_record": 0.016454725943760268
+      }
+    },
+    "knn_scaled_distance": {
+      "complete_input": {
+        "description": "No missing property values. Baseline evaluation.",
+        "is_simulation": false,
+        "prediction_metrics": {
+          "mae": 102085.9804219097,
+          "rmse": 201684.77125972387,
+          "r2": 0.7280741161355532,
+          "baseline_delta_mae": 0.0,
+          "baseline_delta_rmse": 0.0
+        },
+        "imputation_metrics": {
+          "mae": null,
+          "rmse": null
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 0,
+        "runtime_ms_total": 91.48027500123135,
+        "runtime_ms_per_record": 0.01692825222080521
+      },
+      "random_missing_5pct": {
+        "description": "Synthetic MCAR simulation over API-allowed property features at 5% missingness.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 102403.28053293856,
+          "rmse": 203048.56576753737,
+          "r2": 0.7243841511088325,
+          "baseline_delta_mae": 6534.666284233901,
+          "baseline_delta_rmse": 29832.006649707277
+        },
+        "imputation_metrics": {
+          "mae": 2334.474922477751,
+          "rmse": 38966.65836918298
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 1901,
+        "runtime_ms_total": 1321.8642190004175,
+        "runtime_ms_per_record": 0.24460847871954433
+      },
+      "random_missing_15pct": {
+        "description": "Synthetic MCAR simulation over API-allowed property features at 15% missingness.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 103431.62768319763,
+          "rmse": 205987.69525410354,
+          "r2": 0.7163473195773623,
+          "baseline_delta_mae": 18152.911213915617,
+          "baseline_delta_rmse": 49928.989002288115
+        },
+        "imputation_metrics": {
+          "mae": 1856.1277631806372,
+          "rmse": 24514.772067677153
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 5652,
+        "runtime_ms_total": 3201.575523000429,
+        "runtime_ms_per_record": 0.592445507587052
+      },
+      "random_missing_30pct": {
+        "description": "Synthetic MCAR simulation over API-allowed property features at 30% missingness.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 106250.71669133975,
+          "rmse": 209477.61969199672,
+          "r2": 0.7066543883450516,
+          "baseline_delta_mae": 35047.20510732791,
+          "baseline_delta_rmse": 77184.12858973103
+        },
+        "imputation_metrics": {
+          "mae": 2002.262135866749,
+          "rmse": 22095.469090951723
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 11351,
+        "runtime_ms_total": 5430.787783001506,
+        "runtime_ms_per_record": 1.004957028682736
+      },
+      "structured_missing_groups": {
+        "description": "Synthetic grouped missingness where correlated property fields are removed together.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 103120.41987416729,
+          "rmse": 202154.29313472813,
+          "r2": 0.7268065562315982,
+          "baseline_delta_mae": 9444.444485566248,
+          "baseline_delta_rmse": 37854.42809348598
+        },
+        "imputation_metrics": {
+          "mae": 1632.9434893430391,
+          "rmse": 15255.147023832538
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 2598,
+        "runtime_ms_total": 1467.8147720005654,
+        "runtime_ms_per_record": 0.2716163530719033
+      }
+    },
+    "current_production": {
+      "complete_input": {
+        "description": "No missing property values. Baseline evaluation.",
+        "is_simulation": false,
+        "prediction_metrics": {
+          "mae": 102085.9804219097,
+          "rmse": 201684.77125972387,
+          "r2": 0.7280741161355532,
+          "baseline_delta_mae": 0.0,
+          "baseline_delta_rmse": 0.0
+        },
+        "imputation_metrics": {
+          "mae": null,
+          "rmse": null
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 0,
+        "runtime_ms_total": 113.94688799919095,
+        "runtime_ms_per_record": 0.02108565655055347
+      },
+      "random_missing_5pct": {
+        "description": "Synthetic MCAR simulation over API-allowed property features at 5% missingness.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 102403.28053293856,
+          "rmse": 203048.56576753737,
+          "r2": 0.7243841511088325,
+          "baseline_delta_mae": 6534.666284233901,
+          "baseline_delta_rmse": 29832.006649707277
+        },
+        "imputation_metrics": {
+          "mae": 2334.474922477751,
+          "rmse": 38966.65836918298
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 1901,
+        "runtime_ms_total": 1500.4576189985528,
+        "runtime_ms_per_record": 0.27765685029580917
+      },
+      "random_missing_15pct": {
+        "description": "Synthetic MCAR simulation over API-allowed property features at 15% missingness.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 103431.62768319763,
+          "rmse": 205987.69525410354,
+          "r2": 0.7163473195773623,
+          "baseline_delta_mae": 18152.911213915617,
+          "baseline_delta_rmse": 49928.989002288115
+        },
+        "imputation_metrics": {
+          "mae": 1856.1277631806372,
+          "rmse": 24514.772067677153
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 5652,
+        "runtime_ms_total": 4096.474194000621,
+        "runtime_ms_per_record": 0.7580448175426759
+      },
+      "random_missing_30pct": {
+        "description": "Synthetic MCAR simulation over API-allowed property features at 30% missingness.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 106250.71669133975,
+          "rmse": 209477.61969199672,
+          "r2": 0.7066543883450516,
+          "baseline_delta_mae": 35047.20510732791,
+          "baseline_delta_rmse": 77184.12858973103
+        },
+        "imputation_metrics": {
+          "mae": 2002.262135866749,
+          "rmse": 22095.469090951723
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 11351,
+        "runtime_ms_total": 6000.861413000166,
+        "runtime_ms_per_record": 1.110448077905286
+      },
+      "structured_missing_groups": {
+        "description": "Synthetic grouped missingness where correlated property fields are removed together.",
+        "is_simulation": true,
+        "prediction_metrics": {
+          "mae": 103120.41987416729,
+          "rmse": 202154.29313472813,
+          "r2": 0.7268065562315982,
+          "baseline_delta_mae": 9444.444485566248,
+          "baseline_delta_rmse": 37854.42809348598
+        },
+        "imputation_metrics": {
+          "mae": 1632.9434893430391,
+          "rmse": 15255.147023832538
+        },
+        "success_rate_pct": 100.0,
+        "record_count": 5404,
+        "missing_value_count": 2598,
+        "runtime_ms_total": 1458.9510490004614,
+        "runtime_ms_per_record": 0.26997613786092917
+      }
+    }
+  }
+}

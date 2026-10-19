@@ -24,6 +24,12 @@ Core files:
 - `create_imputer.py`: offline artifact generation
 
 ## 3. Quick Start with Docker
+Required runtime artifacts for a reproducible Docker run:
+- `src/model/model.pkl`
+- `src/model/knn_imputer.pkl`
+- `src/model/model_features.json`
+- `src/data/zipcode_demographics.csv`
+
 ```bash
 docker build -t phdata-ml-api .
 docker run --rm -p 8000:8000 --name phdata-ml-api phdata-ml-api
@@ -134,9 +140,10 @@ PYTHONPATH=src:. python evaluate_phase4.py
 PYTHONPATH=src:. python benchmark_phase4.py --base-url http://127.0.0.1:8001 --iterations 200 --requests 120 --concurrency 12
 ```
 
+Offline evaluation from scratch also requires `src/data/kc_house_data.csv`. That dataset is separate from the minimum runtime artifacts needed to serve predictions.
+
 ## 8. Limitations
 - The evaluation split is reconstructed from training code and current data; it is not a cryptographically verified independent holdout for `model.pkl`.
 - The model itself was not retrained with imputed inputs.
 - Missing-value requests are much slower than complete requests because the KNN path is CPU-heavy.
 - Each worker keeps its own in-memory copy of the model and imputation resources.
-- Docker commands are provided here, but container execution must be verified in an environment where Docker is available.
