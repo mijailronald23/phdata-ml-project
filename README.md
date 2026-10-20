@@ -142,7 +142,37 @@ PYTHONPATH=src:. python benchmark_phase4.py --base-url http://127.0.0.1:8001 --i
 
 Offline evaluation from scratch also requires `src/data/kc_house_data.csv`. That dataset is separate from the minimum runtime artifacts needed to serve predictions.
 
-## 8. Limitations
+## 8. Optional Experiment - SHAP Explainability
+SHAP was explored as a supplementary interpretation exercise for the technical interview, not as a mandatory phData challenge requirement or a production API feature.
+
+Methodology:
+- model-agnostic `PermutationExplainer`
+- existing `KNeighborsRegressor` inside the serialized scikit-learn pipeline
+- exact 33-feature model input produced by the existing serving flow
+- background sample: `20` observations
+- explained observations: `5`
+- random seed: `42`
+
+![Exploratory SHAP feature importance - small sample](/home/mijailvargas/ENTREVISTAS/phd_data_test/phdata-ml-project/experiments/xai_shap/results/shap_global_importance.png)
+
+On this small analyzed sample, the top five features by mean absolute SHAP value were `hous_val_amt`, `bathrooms`, `sqft_living`, `sqft_above`, and `bedrooms`. This ranking is exploratory only and should not be treated as a market-wide importance ranking for Seattle housing.
+
+![Exploratory SHAP local explanation - complete input](/home/mijailvargas/ENTREVISTAS/phd_data_test/phdata-ml-project/experiments/xai_shap/results/shap_local_waterfall.png)
+
+For one representative complete record in zipcode `98168`, the model predicted `337477.6` from a SHAP baseline value of `470669.13`. The largest local contributions included `sqft_lot` (`+73998.055`), `bathrooms` (`-53344.355`), and `sqft_basement` (`+53223.265`).
+
+For the same property with `bathrooms` and `sqft_lot` missing, the production inference path predicted `271110.0` instead of `337477.6`, a difference of `-66367.6` (`-19.6658%`). This comparison reflects both the downstream prediction model and the KNN-imputed final input.
+
+Limitations:
+- exploratory small-sample experiment
+- SHAP explains the downstream prediction model on the prepared 33-feature input
+- it does not isolate a causal effect of KNN imputation
+- correlated features may affect SHAP attribution
+- it does not replace Phase 4 `MAE`, `RMSE`, and `R²` evaluation
+
+Reproduction instructions live in `experiments/xai_shap/README.md`.
+
+## 9. Limitations
 - The evaluation split is reconstructed from training code and current data; it is not a cryptographically verified independent holdout for `model.pkl`.
 - The model itself was not retrained with imputed inputs.
 - Missing-value requests are much slower than complete requests because the KNN path is CPU-heavy.
